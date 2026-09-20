@@ -1,9 +1,7 @@
 import yfinance as yafi
-import tkinter as kint
-from tkinter import simpledialog
+import streamlit as st
 
 """Importerar API-bibliotek yfinance som yafi."""
-
 
 class Aktieanalys:
     """ Skapar klassen aktienanalys som ska ska hantera 
@@ -26,6 +24,7 @@ class Aktieanalys:
                     solinfo[ticker] = float(soliditet)
                 return solinfo
         except Exception as undantag:
+            # Ändrat print till att synas i terminalen ifall filen saknas
             print(f"Kunde inte läsa soliditetsdata från {soliditetsfil}: {undantag}")
             return {}
 
@@ -147,65 +146,64 @@ class Aktieanalys:
         else:
             return "Inga beta-värden tillgängliga."
 
-class AktieanalysGUI:
-    """kint.Text är en widget inom tkinter, den använda för att visa eller redigera tex. Texten uppfattas som rad.kolumn där 1.0 är start,
-    och kint.END är slutet. Simpledialog.askstring("titel, fråga") öppnar en ruta som användaren kan interagera med (input funktion). 
-    Exempelvis ("Input", "Ange ticker/förkortning för en aktie"). Texten i kint.Text kan manipuleras m.h.a funtkioner som delete(start, end) för att ta bort eller 
-    insert(position, text) för att lägga till text."""
-    def __init__(self, root):
-        self.analys = Aktieanalys()
-        self.root = root
-        self.root.title("Liptos Aktieanalys Program")
 
-        #pady= avstånd i antalet, vertikalt
-        #kint.Button= funktion inom tkinter för att göra en knapp
-        self.lägg_till_aktier_knapp = kint.Button(root, text="Tillägg av aktier", command=self.lägg_till_aktier)
-        self.lägg_till_aktier_knapp.pack(pady=5)
+# ==========================================
+# ERSÄTTER TKINTER MED STREAMLIT-GRÄNSSNITT
+# ==========================================
 
-        self.fundamental_analys_knapp = kint.Button(root, text="Fundamental analys", command=self.fundamental_analys)
-        self.fundamental_analys_knapp.pack(pady=5)
+st.title("Liptos Aktieanalys Program")
 
-        self.teknisk_analys_knapp = kint.Button(root, text="Teknisk analys", command=self.teknisk_analys)
-        self.teknisk_analys_knapp.pack(pady=5)
+# Ladda in logiken och "kom ihåg" den mellan knapptryck
+if 'analys' not in st.session_state:
+    st.session_state.analys = Aktieanalys()
 
-        self.sortera_betavärde_knapp = kint.Button(root, text="Ordna aktier efter beta", command=self.sortering_betabaserat)
-        self.sortera_betavärde_knapp.pack(pady=5)
+st.subheader("1. Lägg till aktier")
+col1, col2 = st.columns(2)
 
-        self.avslutningsknapp = kint.Button(root, text="Avsluta", command=root.quit)
-        self.avslutningsknapp.pack(pady=5)
+with col1:
+    inmatad_ticker = st.text_input("Ange ticker/förkortning (t.ex. AAPL):").upper()
+with col2:
+    inmatad_period = st.text_input("Ange period (ex. 1mo, 1y, max):", "1mo")
 
-        # Text widget för att visa data
-        self.text_svar = kint.Text(root, height=15, width=50)
-        self.text_svar.pack(pady=10)
+if st.button("Tillägg av aktier"):
+    if inmatad_ticker and inmatad_period:
+        with st.spinner(f"Hämtar data för {inmatad_ticker}..."):
+            st.session_state.analys.importering_av_aktieinformation(inmatad_ticker, inmatad_period)
+            st.session_state.analys.importering_av_marknadsinformation(inmatad_period)
+        
+        if inmatad_ticker in st.session_state.analys.aktier:
+            st.success(f"Aktien {inmatad_ticker} har lagts till i programmet!")
+        else:
+            st.error("Kunde inte hämta data. Kontrollera att tickern är korrekt.")
+    else:
+        st.warning("Vänligen fyll i både ticker och period.")
 
-    def lägg_till_aktier(self):
-        ticker = simpledialog.askstring("Input", "Ange ticker/förkortningen för en aktie:").upper()
-        period = simpledialog.askstring("Input", "Ange period (1d, 5d, 1mo, 3mo, 6mo, 1y, 5y, 10y, ytd, max.):")
-        if ticker and period:
-            self.analys.importering_av_aktieinformation(ticker, period)
-            self.analys.importering_av_marknadsinformation(period)
+st.divider()
 
-    def fundamental_analys(self):
-        ticker = simpledialog.askstring("Input", "Ange ticker/förkortningen för en aktie:").upper()
-        if ticker:
-            result = self.analys.fundamental_långtidsanalys(ticker)
-            self.text_svar.delete(1.0, kint.END)
-            self.text_svar.insert(kint.END, result)
+st.subheader("2. Analysera aktier")
+analys_ticker = st.text_input("Ange ticker för analys (måste vara tillagd ovan):").upper()
 
-    def teknisk_analys(self):
-        ticker = simpledialog.askstring("Input", "Ange ticker/förkortningen för en aktie:").upper()
-        if ticker:
-            result = self.analys.teknisk_korttidsanalys(ticker)
-            self.text_svar.delete(1.0, kint.END)
-            self.text_svar.insert(kint.END, result)
+col3, col4, col5 = st.columns(3)
 
-    def sortering_betabaserat(self):
-        result = self.analys.ordnar_aktierna_beroende_på_beta()
-        self.text_svar.delete(1.0, kint.END)
-        self.text_svar.insert(kint.END, result)
+if col3.button("Fundamental analys"):
+    if analys_ticker:
+        svar = st.session_state.analys.fundamental_långtidsanalys(analys_ticker)
+        st.text(svar)
+    else:
+        st.warning("Ange en ticker först.")
 
+if col4.button("Teknisk analys"):
+    if analys_ticker:
+        with st.spinner("Beräknar..."):
+            svar = st.session_state.analys.teknisk_korttidsanalys(analys_ticker)
+        st.text(svar)
+    else:
+        st.warning("Ange en ticker först.")
 
-if __name__ == "__main__":
-    root = kint.Tk()
-    app = AktieanalysGUI(root)
-    root.mainloop()
+if col5.button("Ordna aktier efter beta"):
+    with st.spinner("Sorterar..."):
+        svar = st.session_state.analys.ordnar_aktierna_beroende_på_beta()
+    st.text(svar)
+
+st.divider()
+st.write("Sparade aktier i minnet:", list(st.session_state.analys.aktier.keys()))
